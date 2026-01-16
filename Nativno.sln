@@ -1,0 +1,45 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "resize", "resize", "{070AEC23-315D-FAE7-64F6-F5765DFD1328}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "maui-blazor-mac", "maui-blazor-mac", "{5DFFB522-F4D5-29FF-F0C3-DCC406E5EB9A}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "play", "play", "{7A21D22C-3314-E30B-6253-ED4BF394BEA9}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nativno.Resize.MauiBlazorMac.Playground", "resize\maui-blazor-mac\play\Nativno.Resize.MauiBlazorMac.Playground.csproj", "{0E42BAD2-1F7D-4B51-9753-DA5518C2A326}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|Any CPU = Release|Any CPU
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{0E42BAD2-1F7D-4B51-9753-DA5518C2A326}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0E42BAD2-1F7D-4B51-9753-DA5518C2A326}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0E42BAD2-1F7D-4B51-9753-DA5518C2A326}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{0E42BAD2-1F7D-4B51-9753-DA5518C2A326}.Debug|x64.Build.0 = Debug|Any CPU
+		{0E42BAD2-1F7D-4B51-9753-DA5518C2A326}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{0E42BAD2-1F7D-4B51-9753-DA5518C2A326}.Debug|x86.Build.0 = Debug|Any CPU
+		{0E42BAD2-1F7D-4B51-9753-DA5518C2A326}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0E42BAD2-1F7D-4B51-9753-DA5518C2A326}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0E42BAD2-1F7D-4B51-9753-DA5518C2A326}.Release|x64.ActiveCfg = Release|Any CPU
+		{0E42BAD2-1F7D-4B51-9753-DA5518C2A326}.Release|x64.Build.0 = Release|Any CPU
+		{0E42BAD2-1F7D-4B51-9753-DA5518C2A326}.Release|x86.ActiveCfg = Release|Any CPU
+		{0E42BAD2-1F7D-4B51-9753-DA5518C2A326}.Release|x86.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{5DFFB522-F4D5-29FF-F0C3-DCC406E5EB9A} = {070AEC23-315D-FAE7-64F6-F5765DFD1328}
+		{7A21D22C-3314-E30B-6253-ED4BF394BEA9} = {5DFFB522-F4D5-29FF-F0C3-DCC406E5EB9A}
+		{0E42BAD2-1F7D-4B51-9753-DA5518C2A326} = {7A21D22C-3314-E30B-6253-ED4BF394BEA9}
+	EndGlobalSection
+EndGlobal

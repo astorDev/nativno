@@ -1,0 +1,26 @@
+﻿@page "/"
+
+@using UIKit
+@using CoreGraphics
+@using System.Linq
+
+<h3>Native window resize playground</h3>
+
+<button @onclick="() => SetSize(600, 450)">Small</button>
+<button @onclick="() => SetSize(1200, 800)">Middle</button>
+<button @onclick="() => SetSize(1800, 1200)">Large</button>
+
+<p>Try resizing the app window with the mouse after pressing a button.</p>
+
+@code {
+    static UIWindowScene Scene =>
+        UIApplication.SharedApplication.ConnectedScenes
+            .OfType<UIWindowScene>()
+            .First();
+
+    static void SetSize(nfloat w, nfloat h)
+    {
+        Scene.SizeRestrictions!.MinimumSize = new CGSize(w, h);
+        Scene.SizeRestrictions!.MaximumSize = new CGSize(w, h);
+    }
+}
