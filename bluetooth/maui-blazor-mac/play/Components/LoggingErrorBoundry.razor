@@ -1,0 +1,20 @@
+@using Microsoft.Extensions.Logging
+@inherits ErrorBoundary
+@inject ILogger<LoggingErrorBoundry> Logger
+
+@if (CurrentException is null)
+{
+    @ChildContent
+}
+else if (ErrorContent is not null)
+{
+    @ErrorContent(CurrentException)
+}
+
+@code {
+    protected override Task OnErrorAsync(Exception ex)
+    {
+        Logger.LogError(ex, "Unknown exception occurred");
+        return Task.CompletedTask;
+    }
+}

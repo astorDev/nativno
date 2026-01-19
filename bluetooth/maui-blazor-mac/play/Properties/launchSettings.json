@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Mac": {
+      "commandName": "Project",
+      "nativeDebugging": false
+    }
+  }
+}

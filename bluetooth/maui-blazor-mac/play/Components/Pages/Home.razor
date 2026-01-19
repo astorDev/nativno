@@ -1,0 +1,48 @@
+﻿@page "/"
+
+@using CoreBluetooth
+@using CoreFoundation
+
+<h3>BLE scan (bare)</h3>
+
+<button @onclick="ScanFresh">Refresh</button>
+
+<span>Found: @_found.Count</span>
+
+<ul>
+@foreach (var e in _found)
+{
+    <li>
+        @e.RSSI?.Int32Value
+        · @e.Peripheral?.Identifier.AsString()
+        · @e.Peripheral?.Name
+    </li>
+}
+</ul>
+
+@code
+{
+    readonly List<CBDiscoveredPeripheralEventArgs> _found = new();
+    CBCentralManager _central = null!;
+
+    protected override void OnInitialized() => ScanFresh();
+    
+    void ScanFresh()
+    {
+        _found.Clear();
+
+        _central = new(dispatchQueue: DispatchQueue.MainQueue);
+
+        if (_central.State != CBManagerState.PoweredOn)
+            throw new InvalidOperationException($"Bluetooth state: {_central.State}");
+
+        _central.DiscoveredPeripheral += (_, e) =>
+        {
+            _found.Add(e);
+            InvokeAsync(StateHasChanged);
+        };
+
+        _central.ScanForPeripherals(peripheralUuids: null);
+    }
+}
+
