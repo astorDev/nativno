@@ -1,48 +1,76 @@
 ﻿@page "/"
 
+@using Backi.Timers
 @using CoreBluetooth
 @using CoreFoundation
+@using Microsoft.Extensions.Logging
 
 <h3>BLE scan (bare)</h3>
+<h3>State: @_stateString</h3>
 
-<button @onclick="ScanFresh">Refresh</button>
+<button @onclick="ScanFresh">Fresh Scan</button>
+<button @onclick="Stop">Stop</button>
 
-<span>Found: @_found.Count</span>
+<span>Found: @_items.Count</span>
 
 <ul>
-@foreach (var e in _found)
-{
-    <li>
-        @e.RSSI?.Int32Value
-        · @e.Peripheral?.Identifier.AsString()
-        · @e.Peripheral?.Name
-    </li>
-}
+    @foreach (var e in _items.Values)
+    {
+        <li>
+            @e.RSSI?.Int32Value
+            · @e.Peripheral?.Identifier.AsString()
+            · @e.Peripheral?.Name
+        </li>
+    }
 </ul>
+
+@inject ILogger<Home> logger
 
 @code
 {
-    readonly List<CBDiscoveredPeripheralEventArgs> _found = new();
-    CBCentralManager _central = null!;
+    string _stateString = "";
+    readonly Dictionary<string, CBDiscoveredPeripheralEventArgs> _items = new();
+    readonly CBCentralManager _central = new(dispatchQueue: DispatchQueue.MainQueue);
 
-    protected override void OnInitialized() => ScanFresh();
+    protected override void OnInitialized()
+    {
+        _central.DiscoveredPeripheral += (_, e) =>
+        {
+            var id = e.Peripheral.Identifier.ToString();
+            var name = e.Peripheral.Name;
+            if (!String.IsNullOrWhiteSpace(name))
+            {
+                _items[id] = e;
+                InvokeAsync(StateHasChanged);
+            }
+        };
+
+        SafeTimer.RunNowAndPeriodically(
+            TimeSpan.FromSeconds(2),
+            () =>
+            {
+                _stateString = $"{_central.State}";
+                InvokeAsync(StateHasChanged);
+            },
+            ex => logger.LogError(ex, "Error while refreshing state view")
+        );
+
+        ScanFresh();
+    } 
     
     void ScanFresh()
     {
-        _found.Clear();
-
-        _central = new(dispatchQueue: DispatchQueue.MainQueue);
-
-        if (_central.State != CBManagerState.PoweredOn)
-            throw new InvalidOperationException($"Bluetooth state: {_central.State}");
-
-        _central.DiscoveredPeripheral += (_, e) =>
+        _items.Clear();
+        
+        if (_central.State == CBManagerState.PoweredOn)
         {
-            _found.Add(e);
-            InvokeAsync(StateHasChanged);
-        };
+            _central.ScanForPeripherals(peripheralUuids: null);    
+        }
+    }
 
-        _central.ScanForPeripherals(peripheralUuids: null);
+    void Stop()
+    {
+        _central.StopScan();
     }
 }
 
