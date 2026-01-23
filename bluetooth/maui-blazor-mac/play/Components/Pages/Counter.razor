@@ -1,16 +1,78 @@
 ﻿@page "/counter"
+@using Backi.Timers
+@using CoreBluetooth
+@using Nativno.Bluetooth.Mac.Playground.Helpers
 
-<h1>Counter</h1>
+<h1>Current Peripheral</h1>
 
-<p role="status">Current count: @currentCount</p>
+@if (collection.Connected == null)
+{
+    <h2>No Peripheral is connected</h2>
+}
+else
+{
+    <PeripheralInfoView PeripheralId="@collection.ConnectedId" />
+    
+    <ul>
+    @foreach (var x in collection.Connected!.Services ?? [])
+    {
+        <li>
+            @x.UUID
+            * @x.Description
+            * <button @onclick="() => SelectService(x)">Select</button>
+            <ul>
+                @foreach (var c in x.Characteristics ?? [])
+                {
+                    <li>@c.Value?.Length
+                        * @c.Descriptors 
+                        * @c.Properties
+                        * IsBroadcasted: @c.IsBroadcasted
+                        * IsNotifying: @c.IsNotifying
+                        * @c.Description
+                    </li>
+                }
+            </ul>
 
-<button class="btn btn-primary" @onclick="IncrementCount">Click me</button>
+        </li>
+    }
+    </ul>
+}
+
+@inject PeripheralsCollection collection
+@inject SelectedService selectedService
 
 @code {
-    private int currentCount = 0;
-
-    private void IncrementCount()
+    protected override void OnInitialized()
     {
-        currentCount++;
+        collection.Connected?.DiscoverServices();
+
+        collection.Connected?.DiscoveredService += (_, args) =>
+        {
+            foreach (var service in collection.Connected.Services!)
+            {
+                collection.Connected.DiscoverCharacteristics(service);
+            }
+            
+            collection.Connected.DiscoverCharacteristics(collection.Connected.Services!.First());
+            
+            InvokeAsync(StateHasChanged);
+        };
+        
+        collection.Connected?.SetupToReadValuesOnCharacteristicDiscovery();
+        collection.Connected!.DiscoveredCharacteristics += (_, _) => InvokeAsync(StateHasChanged);
+        collection.Connected!.UpdatedCharacterteristicValue += (_, _) => InvokeAsync(StateHasChanged);
+        
+        SafeTimer.RunNowAndPeriodically(
+            TimeSpan.FromSeconds(1),
+            () =>
+            {
+                InvokeAsync(StateHasChanged);
+            }
+        );
+    }
+
+    private void SelectService(CBService service)
+    {
+        selectedService.Instance = service;
     }
 }

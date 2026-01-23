@@ -1,6 +1,7 @@
 ﻿@page "/"
 
 @using Backi.Timers
+@using CommunityToolkit.Maui.Alerts
 @using CoreBluetooth
 @using CoreFoundation
 @using Microsoft.Extensions.Logging
@@ -11,39 +12,58 @@
 <button @onclick="ScanFresh">Fresh Scan</button>
 <button @onclick="Stop">Stop</button>
 
-<span>Found: @_items.Count</span>
+<span>Found: @peripherals.Discoveries.Count</span>
 
 <ul>
-    @foreach (var e in _items.Values)
+    @foreach (var (k, _) in peripherals.Discoveries)
     {
-        <li>
-            @e.RSSI?.Int32Value
-            · @e.Peripheral?.Identifier.AsString()
-            · @e.Peripheral?.Name
-        </li>
+        <PeripheralInfoView PeripheralId="@k">
+            <button @onclick="() => Connect(k)">Connect</button>
+        </PeripheralInfoView>
+        
+        @* <li> *@
+        @*     @e.RSSI?.Int32Value *@
+        @*     · @e.Peripheral?.Identifier.AsString() *@
+        @*     · @e.Peripheral?.Name *@
+        @*     · <button @onclick="() => Connect(e.Peripheral!.Identifier.ToString())">Connect</button> *@
+        @*     <ul> *@
+        @*     @foreach (var ad in e.AdvertisementData) *@
+        @*     { *@
+        @*         <li> *@
+        @*             @ad.Key.ToString().Replace("kCBAdvData", "") : @ad.Value *@
+        @*         </li> *@
+        @*     } *@
+        @*     </ul> *@
+        @* </li> *@
     }
 </ul>
 
 @inject ILogger<Home> logger
+@inject PeripheralsCollection peripherals
+@inject CBCentralManager _central
 
 @code
 {
     string _stateString = "";
     readonly Dictionary<string, CBDiscoveredPeripheralEventArgs> _items = new();
-    readonly CBCentralManager _central = new(dispatchQueue: DispatchQueue.MainQueue);
+    // readonly CBCentralManager _central = new(dispatchQueue: DispatchQueue.MainQueue);
 
     protected override void OnInitialized()
     {
         _central.DiscoveredPeripheral += (_, e) =>
         {
-            var id = e.Peripheral.Identifier.ToString();
-            var name = e.Peripheral.Name;
-            if (!String.IsNullOrWhiteSpace(name))
-            {
-                _items[id] = e;
-                InvokeAsync(StateHasChanged);
-            }
+            peripherals.PutIfPeripheralIsNamed(e);
+            InvokeAsync(StateHasChanged);
         };
+
+        _central.ConnectedPeripheral += (_, e) => logger.LogInformation("connected, {event}", e);
+        _central.FailedToConnectPeripheral += (_, e) => logger.LogInformation("failed to connect");
+        _central.DidDisconnectPeripheral  += (_, e) => logger.LogInformation("did disconnect peripheral");
+        
+        peripherals.SubscribeOnConnectionEvent(_central);
+
+        _central.ConnectedPeripheral += (_, e) => peripherals.Connected = e.Peripheral;
+        _central.ConnectedPeripheral += async (_, e) => await Toast.Make("Connected").Show();
 
         SafeTimer.RunNowAndPeriodically(
             TimeSpan.FromSeconds(2),
@@ -60,12 +80,21 @@
     
     void ScanFresh()
     {
-        _items.Clear();
+        peripherals.Discoveries.Clear();
         
         if (_central.State == CBManagerState.PoweredOn)
         {
             _central.ScanForPeripherals(peripheralUuids: null);    
         }
+    }
+
+    void Connect(string peripheralId)
+    {
+        var discovered = peripherals.Discoveries[peripheralId];
+        
+        logger.LogInformation("initiating connection to {peripheral}", discovered.Peripheral);
+        
+        _central.ConnectPeripheral(discovered.Peripheral);
     }
 
     void Stop()

@@ -1,61 +1,68 @@
 ﻿@page "/weather"
+@using CoreBluetooth
+@using Microsoft.Extensions.Logging
+@using Nativno.Bluetooth.Mac.Playground.Helpers
 
-<h1>Weather</h1>
-
-<p>This component demonstrates showing data.</p>
-
-@if (forecasts == null)
+@if (selectedService.Instance == null)
 {
-    <p><em>Loading...</em></p>
+    <p><em>No service selected yet</em></p>
 }
 else
 {
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th aria-label="Temperature in Celsius">Temp. (C)</th>
-                <th aria-label="Temperature in Fahrenheit">Temp. (F)</th>
-                <th>Summary</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var forecast in forecasts)
-            {
-                <tr>
-                    <td>@forecast.Date.ToShortDateString()</td>
-                    <td>@forecast.TemperatureC</td>
-                    <td>@forecast.TemperatureF</td>
-                    <td>@forecast.Summary</td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    <ul>
+        @foreach (var c in _service.Characteristics ?? [])
+        {
+            <li>@c.Value
+                * @c.Descriptors 
+                * @c.Properties
+                * IsBroadcasted: @c.IsBroadcasted
+                * IsNotifying: @c.IsNotifying
+                * @c.Description
+            </li>
+        }
+    </ul>
 }
 
+@inject SelectedService selectedService
+@inject ILogger<Weather> _logger
+
 @code {
-    private WeatherForecast[]? forecasts;
+    private CBService _service = null!;
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
-        // Simulate asynchronous loading to demonstrate a loading indicator
-        await Task.Delay(500);
-
-        var startDate = DateOnly.FromDateTime(DateTime.Now);
-        var summaries = new[] { "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching" };
-        forecasts = Enumerable.Range(1, 5).Select(index => new WeatherForecast
+        if (selectedService.Instance == null)
         {
-            Date = startDate.AddDays(index),
-            TemperatureC = Random.Shared.Next(-20, 55),
-            Summary = summaries[Random.Shared.Next(summaries.Length)]
-        }).ToArray();
-    }
+            return;
+        }
+        
+        _service = selectedService.Instance!;
+        _service.Peripheral!.DiscoverCharacteristics(_service);
 
-    private class WeatherForecast
-    {
-        public DateOnly Date { get; set; }
-        public int TemperatureC { get; set; }
-        public string? Summary { get; set; }
-        public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
+        _service.Peripheral.DiscoveredCharacteristics += (_, args) =>
+        {
+            foreach (var ch in args.Service.Characteristics!)
+            {
+                if (ch.Properties.HasFlag(CBCharacteristicProperties.Read))
+                {
+                    _logger.LogInformation("Initiating ReadValue for {ch}", ch);   
+                    _service.Peripheral.ReadValue(ch);
+                }
+
+                if (ch.Properties.HasFlag(CBCharacteristicProperties.Notify))
+                {
+                    _logger.LogInformation("Initiating Notify true for {ch}", ch);
+                    _service.Peripheral.SetNotifyValue(true, ch);
+                }
+            }
+        };
+
+        _service.Peripheral.UpdatedCharacterteristicValue += (_, args) => InvokeAsync(StateHasChanged);
+        _service.Peripheral.UpdatedValue += (_, args) => InvokeAsync(StateHasChanged);
+        _service.Peripheral.UpdatedNotificationState += (_, args) => InvokeAsync(StateHasChanged);
+
+        _service.Peripheral.UpdatedCharacterteristicValue += (_, args) => _logger.LogInformation("UpdatedCharacteristicValue");
+        _service.Peripheral.UpdatedValue += (_, args) => _logger.LogInformation("UpdatedValue");
+        _service.Peripheral.UpdatedNotificationState += (_, args) => _logger.LogInformation("UpdatedNotificationState");
     }
 }

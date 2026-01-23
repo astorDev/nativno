@@ -1,0 +1,36 @@
+@using CoreBluetooth
+<li>
+    @e.RSSI?.Int32Value
+    · @e.Peripheral?.Identifier.AsString()
+    · @e.Peripheral?.Name
+    · @e.Peripheral?.State
+    @if (ChildContent is not null)
+    {
+        <div>· @ChildContent</div>
+    }
+    
+    <ul>
+        @foreach (var ad in e.AdvertisementData)
+        {
+            <li>
+                @ad.Key.ToString().Replace("kCBAdvData", "") : @ad.Value
+            </li>
+        }
+    </ul>
+</li>
+
+@inject PeripheralsCollection collection
+@code {
+    [Parameter, EditorRequired] 
+    public string PeripheralId { get; set; } = default!;
+    
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    public CBDiscoveredPeripheralEventArgs e; 
+
+    protected override void OnInitialized()
+    {
+        e = collection.Discoveries[PeripheralId];
+    }
+}
