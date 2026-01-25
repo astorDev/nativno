@@ -5,6 +5,7 @@
 @using CoreBluetooth
 @using CoreFoundation
 @using Microsoft.Extensions.Logging
+@using Nativno.Bluetooth.Mac.Playground.Helpers
 
 <h3>BLE scan (bare)</h3>
 <h3>State: @_stateString</h3>
@@ -12,34 +13,37 @@
 <button @onclick="ScanFresh">Fresh Scan</button>
 <button @onclick="Stop">Stop</button>
 
-<span>Found: @peripherals.Discoveries.Count</span>
+<span>Found: @trackedPeripheral.Items.Count</span>
 
 <ul>
-    @foreach (var (k, _) in peripherals.Discoveries)
+    @foreach (var (k, e) in trackedPeripheral.Items)
     {
-        <PeripheralInfoView PeripheralId="@k">
+        @* <PeripheralInfoView PeripheralId="@k">
             <button @onclick="() => Connect(k)">Connect</button>
-        </PeripheralInfoView>
+        </PeripheralInfoView> *@
         
-        @* <li> *@
-        @*     @e.RSSI?.Int32Value *@
-        @*     · @e.Peripheral?.Identifier.AsString() *@
-        @*     · @e.Peripheral?.Name *@
-        @*     · <button @onclick="() => Connect(e.Peripheral!.Identifier.ToString())">Connect</button> *@
-        @*     <ul> *@
-        @*     @foreach (var ad in e.AdvertisementData) *@
-        @*     { *@
-        @*         <li> *@
-        @*             @ad.Key.ToString().Replace("kCBAdvData", "") : @ad.Value *@
-        @*         </li> *@
-        @*     } *@
-        @*     </ul> *@
-        @* </li> *@
+        <li>
+            @e.Discovery.Peripheral.RSSI?.Int32Value
+            · @e.Discovery.Peripheral.Identifier.AsString()
+            · @e.Discovery.Peripheral.Name
+            · @e.ConnectionState
+            @if (e.ConnectionState == PeripheralConnectionState.Disconnected)
+            {
+                <span> · </span>
+                <button @onclick="() => Connect(e.Discovery.Peripheral.Identifier.ToString())">Connect</button>
+            }
+            @if (e.ConnectionState == PeripheralConnectionState.Connected)
+            {
+                <span> · </span>
+                <button @onclick="() => Disconnect(e.Discovery.Peripheral.Identifier.ToString())">Disconnect</button>
+            }
+        </li>
     }
 </ul>
 
 @inject ILogger<Home> logger
-@inject PeripheralsCollection peripherals
+@* @inject PeripheralsCollection peripherals *@
+@inject TrackedPeripheralCollection trackedPeripheral
 @inject CBCentralManager _central
 
 @code
@@ -50,25 +54,42 @@
 
     protected override void OnInitialized()
     {
-        _central.DiscoveredPeripheral += (_, e) =>
+        @* _central.DiscoveredPeripheral += (_, e) =>
         {
             peripherals.PutIfPeripheralIsNamed(e);
+            trackedPeripheral.RegisterDiscoveryOnNamedPeripheral(e);
             InvokeAsync(StateHasChanged);
-        };
+        }; *@
 
-        _central.ConnectedPeripheral += (_, e) => logger.LogInformation("connected, {event}", e);
+        trackedPeripheral.SubscribeToPeripheralsDiscoveries(_central);
+        trackedPeripheral.SubscribeToConnectionStatuses(_central);
+
+        trackedPeripheral.ListUpdatedNotifier.Subscribe(() => InvokeAsync(StateHasChanged));
+        
+        trackedPeripheral.ConnectionStatusUpdatedNotifier.Subscribe((_) => InvokeAsync(StateHasChanged));
+        trackedPeripheral.ConnectionStatusUpdatedNotifier.Subscribe((c) => Toast.Make($"{c.Discovery.Peripheral.Name} {c.ConnectionState}").Show());
+        trackedPeripheral.ConnectionStatusUpdatedNotifier.Subscribe(c => logger.LogInformation("Connection status updated {Peripheral} {State}", c.Discovery.Peripheral.Name, c.ConnectionState));
+
+        @* _central.ConnectedPeripheral += (_, e) => logger.LogInformation("connected, {event}", e);
         _central.FailedToConnectPeripheral += (_, e) => logger.LogInformation("failed to connect");
         _central.DidDisconnectPeripheral  += (_, e) => logger.LogInformation("did disconnect peripheral");
-        
-        peripherals.SubscribeOnConnectionEvent(_central);
+        _central.DisconnectedPeripheral += (_, e) => logger.LogInformation("disconnected peripheral");
 
-        _central.ConnectedPeripheral += (_, e) => peripherals.Connected = e.Peripheral;
-        _central.ConnectedPeripheral += async (_, e) => await Toast.Make("Connected").Show();
+        _central.ConnectedPeripheral += (_, e) => InvokeAsync(StateHasChanged);
+        _central.FailedToConnectPeripheral += (_, e) => InvokeAsync(StateHasChanged);
+        _central.DidDisconnectPeripheral  += (_, e) => InvokeAsync(StateHasChanged);
+        _central.DisconnectedPeripheral += (_, e) => InvokeAsync(StateHasChanged);
+        
+        peripherals.SubscribeOnConnectionEvent(_central); *@
+
+        @* _central.ConnectedPeripheral += (_, e) => peripherals.Connected = e.Peripheral;
+        _central.ConnectedPeripheral += async (_, e) => await Toast.Make("Connected").Show(); *@
 
         SafeTimer.RunNowAndPeriodically(
             TimeSpan.FromSeconds(2),
             () =>
             {
+                trackedPeripheral.RemoveOldDiscoveries(TimeSpan.FromSeconds(5));
                 _stateString = $"{_central.State}";
                 InvokeAsync(StateHasChanged);
             },
@@ -80,7 +101,7 @@
     
     void ScanFresh()
     {
-        peripherals.Discoveries.Clear();
+        trackedPeripheral.Items.Clear();
         
         if (_central.State == CBManagerState.PoweredOn)
         {
@@ -90,11 +111,21 @@
 
     void Connect(string peripheralId)
     {
-        var discovered = peripherals.Discoveries[peripheralId];
+        var peripheral = trackedPeripheral.Items[peripheralId].Discovery.Peripheral;
         
-        logger.LogInformation("initiating connection to {peripheral}", discovered.Peripheral);
+        logger.LogInformation("initiating connection to {peripheral}", peripheral);
         
-        _central.ConnectPeripheral(discovered.Peripheral);
+        _central.ConnectPeripheral(peripheral);
+        trackedPeripheral.UpdateConnectionStatus(peripheral, PeripheralConnectionState.Connecting);
+    }
+
+    void Disconnect(string peripheralId)
+    {
+        var peripheral = trackedPeripheral.Items[peripheralId].Discovery.Peripheral;
+        
+        logger.LogInformation("initiating connection to {peripheral}", peripheral);
+        
+        _central.CancelPeripheralConnection(peripheral);
     }
 
     void Stop()
