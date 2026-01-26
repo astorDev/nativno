@@ -1,4 +1,6 @@
 ﻿@page "/"
+@* @implements IDisposable *@
+@inherits SubscriberComponent
 
 @using Backi.Timers
 @using CommunityToolkit.Maui.Alerts
@@ -13,10 +15,10 @@
 <button @onclick="ScanFresh">Fresh Scan</button>
 <button @onclick="Stop">Stop</button>
 
-<span>Found: @trackedPeripheral.Items.Count</span>
+<span>Found: @_tracker.Items.Count</span>
 
 <ul>
-    @foreach (var (k, e) in trackedPeripheral.Items)
+    @foreach (var (k, e) in _tracker.Items)
     {
         @* <PeripheralInfoView PeripheralId="@k">
             <button @onclick="() => Connect(k)">Connect</button>
@@ -41,59 +43,37 @@
     }
 </ul>
 
-@inject ILogger<Home> logger
-@* @inject PeripheralsCollection peripherals *@
-@inject TrackedPeripheralCollection trackedPeripheral
+@inject ILogger<Home> _logger
+@inject TrackedPeripheralCollection _tracker
 @inject CBCentralManager _central
 
 @code
 {
     string _stateString = "";
     readonly Dictionary<string, CBDiscoveredPeripheralEventArgs> _items = new();
-    // readonly CBCentralManager _central = new(dispatchQueue: DispatchQueue.MainQueue);
+    readonly List<IDisposable> _subscriptions = new();
+    SafeTimer? _timer;
 
     protected override void OnInitialized()
     {
-        @* _central.DiscoveredPeripheral += (_, e) =>
-        {
-            peripherals.PutIfPeripheralIsNamed(e);
-            trackedPeripheral.RegisterDiscoveryOnNamedPeripheral(e);
-            InvokeAsync(StateHasChanged);
-        }; *@
+        _tracker.SubscribeToPeripheralsDiscoveries(_central);
+        _tracker.SubscribeToConnectionStatuses(_central);
 
-        trackedPeripheral.SubscribeToPeripheralsDiscoveries(_central);
-        trackedPeripheral.SubscribeToConnectionStatuses(_central);
+        _tracker.ConnectionStatusUpdatedNotifier.AddListener(c => _logger.LogInformation("Connection status updated {Peripheral} {State}", c.Discovery.Peripheral.Name, c.ConnectionState));
 
-        trackedPeripheral.ListUpdatedNotifier.Subscribe(() => InvokeAsync(StateHasChanged));
+        SubscribeStateHasChangedTo(_tracker.ListUpdatedNotifier);
+        SubscribeStateHasChangedTo(_tracker.ConnectionStatusUpdatedNotifier);
+        SubscribeTo(_tracker.ConnectionStatusUpdatedNotifier, c => Toast.Make($"{c.Discovery.Peripheral.Name} {c.ConnectionState}").Show());
         
-        trackedPeripheral.ConnectionStatusUpdatedNotifier.Subscribe((_) => InvokeAsync(StateHasChanged));
-        trackedPeripheral.ConnectionStatusUpdatedNotifier.Subscribe((c) => Toast.Make($"{c.Discovery.Peripheral.Name} {c.ConnectionState}").Show());
-        trackedPeripheral.ConnectionStatusUpdatedNotifier.Subscribe(c => logger.LogInformation("Connection status updated {Peripheral} {State}", c.Discovery.Peripheral.Name, c.ConnectionState));
-
-        @* _central.ConnectedPeripheral += (_, e) => logger.LogInformation("connected, {event}", e);
-        _central.FailedToConnectPeripheral += (_, e) => logger.LogInformation("failed to connect");
-        _central.DidDisconnectPeripheral  += (_, e) => logger.LogInformation("did disconnect peripheral");
-        _central.DisconnectedPeripheral += (_, e) => logger.LogInformation("disconnected peripheral");
-
-        _central.ConnectedPeripheral += (_, e) => InvokeAsync(StateHasChanged);
-        _central.FailedToConnectPeripheral += (_, e) => InvokeAsync(StateHasChanged);
-        _central.DidDisconnectPeripheral  += (_, e) => InvokeAsync(StateHasChanged);
-        _central.DisconnectedPeripheral += (_, e) => InvokeAsync(StateHasChanged);
-        
-        peripherals.SubscribeOnConnectionEvent(_central); *@
-
-        @* _central.ConnectedPeripheral += (_, e) => peripherals.Connected = e.Peripheral;
-        _central.ConnectedPeripheral += async (_, e) => await Toast.Make("Connected").Show(); *@
-
-        SafeTimer.RunNowAndPeriodically(
+        _timer = SafeTimer.RunNowAndPeriodically(
             TimeSpan.FromSeconds(2),
             () =>
             {
-                trackedPeripheral.RemoveOldDiscoveries(TimeSpan.FromSeconds(5));
+                _tracker.RemoveOldDiscoveries(TimeSpan.FromSeconds(5));
                 _stateString = $"{_central.State}";
                 InvokeAsync(StateHasChanged);
             },
-            ex => logger.LogError(ex, "Error while refreshing state view")
+            ex => _logger.LogError(ex, "Error while refreshing state view")
         );
 
         ScanFresh();
@@ -101,7 +81,7 @@
     
     void ScanFresh()
     {
-        trackedPeripheral.Items.Clear();
+        _tracker.Items.Clear();
         
         if (_central.State == CBManagerState.PoweredOn)
         {
@@ -111,26 +91,24 @@
 
     void Connect(string peripheralId)
     {
-        var peripheral = trackedPeripheral.Items[peripheralId].Discovery.Peripheral;
+        var peripheral = _tracker.Items[peripheralId].Discovery.Peripheral;
         
-        logger.LogInformation("initiating connection to {peripheral}", peripheral);
+        _logger.LogInformation("initiating connection to {peripheral}", peripheral);
         
         _central.ConnectPeripheral(peripheral);
-        trackedPeripheral.UpdateConnectionStatus(peripheral, PeripheralConnectionState.Connecting);
+        _tracker.UpdateConnectionStatus(peripheral, PeripheralConnectionState.Connecting);
     }
 
     void Disconnect(string peripheralId)
     {
-        var peripheral = trackedPeripheral.Items[peripheralId].Discovery.Peripheral;
+        var peripheral = _tracker.Items[peripheralId].Discovery.Peripheral;
         
-        logger.LogInformation("initiating connection to {peripheral}", peripheral);
+        _logger.LogInformation("initiating connection to {peripheral}", peripheral);
         
         _central.CancelPeripheralConnection(peripheral);
     }
 
-    void Stop()
-    {
-        _central.StopScan();
-    }
-}
+    void Stop() => _central.StopScan();
 
+    public override void DisposeAdditionally() => _timer?.Stop();
+}

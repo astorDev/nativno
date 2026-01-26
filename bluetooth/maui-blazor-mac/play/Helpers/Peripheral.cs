@@ -1,5 +1,3 @@
-using CoreBluetooth;
-
 namespace Nativno.Bluetooth.Mac.Playground.Helpers;
 
 public static class PeripheralHelper
@@ -112,40 +110,4 @@ public enum PeripheralConnectionState
     Disconnected,
     Connecting,
     Connected
-}
-
-public class Notifier<TEventArgs>
-{
-    public List<Action<TEventArgs>> Listeners { get; } = new ();
-
-    public void Subscribe(Action<TEventArgs> listener)
-    {
-        Listeners.Add(listener);
-    }
-
-    public void Notify(TEventArgs args)
-    {
-        foreach (var listener in Listeners)
-        {
-            listener(args);
-        }
-    }
-}
-
-public class Notifier
-{
-    public List<Action> Listeners { get; } = new ();
-
-    public void Subscribe(Action listener)
-    {
-        Listeners.Add(listener);
-    }
-
-    public void Notify()
-    {
-        foreach (var listener in Listeners)
-        {
-            listener();
-        }
-    }
 }
